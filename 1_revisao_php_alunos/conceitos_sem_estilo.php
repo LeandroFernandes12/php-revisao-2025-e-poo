@@ -4,8 +4,223 @@ session_start();
 
 
 // 1º Digitação da lógica em PHP (Aqui)
+$host = "localhost";
+$usuario = "root";
+$senha = "Senai@118";
+$banco = "sistema_simples";
 
+// Função que estabelece conexão com o banco de dados e retorna o objeto de conexão
+function conectarBD(){
+    // Indica que serão usadas as variáveis globais definidas anteriormente
+    global $host, $usuario, $senha, $banco;
+    // Cria um novo objeto de conexão MySQLi com os parâmetros fornecidos
+    $conexao = new mysqli($host, $usuario, $senha, $banco);
 
+    if ($conexao->connect_error) {
+        die("Falha na conexão: ". $conexao->connect_error);
+    }
+
+    echo "Conexão com o banco de dados realizada com sucesso";
+
+    return $conexao;
+}
+//______________________________________________________________________
+// Validações e inicializações de variáveis
+
+// Função que valida se um campo de formulário não está vazio
+function validarCampo($campo){
+    // Remove espaços em branco no início e fim do texto
+    $campo = trim($campo);
+    // Retorna verdadeiro se o campo não estiver vazio, falso caso contrário
+    return !empty($campo);
+}
+
+// Função que limpa dados de entrada para prevenir injeção de código malicioso
+function sanitizar($dado) {
+    // Remove espaços em branco no inicio e fim do texto
+    $dado = trim($dado);
+    // Remove barras invertidas adicionadas por escape automático
+    $dado = stripslashes($dado);
+    // Converte caracteres especiais em entidades HTML para evitar ataques XSS
+    $dado = htmlspecialchars($dado);
+    // Retorna o dado limpo e seguro
+    return $dado;
+}
+
+// Inicializa variáveis que serão utilizadas no sistema
+$mensagem = "";
+$nome = "";
+$id_para_editar = 0;
+$operacao = "cadastrar";
+
+if($_SERVER["REQUEST_METHOD"] == "GET") {
+
+    if(isset($_GET["logout"])) {
+        session_destroy();
+
+        header("Location: ". $_SERVER["PHP_SELF"]);
+
+        exit;
+    }
+
+    if (isset($_GET["editar"]) && is_numeric($_GET["editar"]) && isset($_SESSION["logado"])) {
+        $id_para_editar = (int)$_GET["editar"];
+
+        $operacao = "editar";
+
+        $conexao = conectarBD();
+
+        $stmt = $conexao->prepare("SELECT nome FROM itens WHERE id = ?");
+
+        $stmt->bind_param("i", $id_para_editar);
+
+        $stmt->execute();
+
+        $resultado = $stmt->get_result();
+
+        if ($registro = $resultado->fetch_assoc()) {
+            
+            $nome = $registro["nome"];
+        }
+
+        $stmt->close();
+
+        $conexao->close();
+    }
+
+    // _______________________________________________________________
+    // Exclusão (Delete)
+
+    // Verifica se foi solicitada a exclusão de um item e se o usuário está logado
+    if (isset($_GET["excluir"]) && is_numeric($_GET["excluir"]) && isset($_SESSION["logado"])) {
+        
+        $id_para_excluir = (int)$_GET["excluir"];
+
+        $conexao = conectarBD();
+
+        $stmt = $conexao->prepare("DELETE FROM itens WHERE id = ?");
+
+        $stmt->bind_param("i", $id_para_excluir);
+
+        if ($stmt->execute()) {
+            $mensagem = "Item excluído com sucesso!";
+        } else {
+            $mensagem = "Erro ao excluir o item: ". $conexao->error;
+        }
+
+        $stmt->close();
+
+        $conexao->close();
+    }
+}
+
+// ___________________________________________________________________
+// Entrada no sistema (Login)
+
+// Verifica se a requisição atual é do tipo POST (envio de formulário)
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (isset($_POST["acao"]) && $_POST["acao"] == "login") {
+        $usuario_login = sanitizar($_POST["usuario"] ?? "");
+        $senha_login = sanitizar($_POST["senha"] ?? "");
+
+        if (!validarCampo($usuario_login) || !validarCampo($senha_login)) {
+            $mensagem = "Por favor, preencha todos os campos!";
+        } else {
+            if ($usuario_login == "admin" && $senha_login == "admin") {
+                $_SESSION["logado"] = true;
+
+                $_SESSION["usuario"] = $usuario_login;
+
+                $mensagem = "Login realizado com sucesso!";
+            } else {
+                $mensagem = "Usuário ou senha incorretos!";
+            }
+        }
+    }
+
+    //___________________________________________________________________
+    // Verifica se ação é de cadastro ou atualização (Insert/Update)
+
+    // Verifica se a ação é de cadastro ou atualização de item e se o usuário está logado
+    if (isset($_POST["acao"]) && ($_POST["acao"] == "cadastrar" || $_POST["acao"] == "atualizar") && isset($_SESSION["logado"])) {
+
+        $nome = sanitizar($_POST["nome"] ?? "");
+
+        if (!validarCampo($nome)) {
+            $mensagem = "Por favor, preencha o campo nome!";
+        } else {
+            $conexao = conectarBD();
+
+            //___________________________________________________________
+            // Cadastro (Insert)
+
+            // Verifica se a ação é cadastrar novo item
+            if ($_POST["acao"] == "cadastrar") {
+
+                $stmt = $conexao->prepare("INSERT INTO itens (nome) VALUES (?)");
+                
+                $stmt->bind_param("s", $nome);
+
+                if($stmt->execute()) {
+                    $mensagem = "Item cadastrado com sucesso!";
+
+                    $nome = "";
+                } else {
+                    $mensagem = "Erro ao cadastrar item: ". $conexao->error;
+                }
+            }
+
+            // __________________________________________________________
+            // Atualização (Update)
+
+            // Verifica se a ação é atualizar item existente
+            else if ($_POST["acao"] == "atualizar") {
+                $id = (int)$_POST["id"];
+
+                $stmt = $conexao->prepare("UPDATE itens SET nome = ? WHERE id= ?");
+
+                $stmt->bind_param("si", $nome, $id);
+
+                if ($stmt->execute()) {
+                    $mensagem = "Item atualizado com sucesso!";
+
+                    header("Location: ". $_SERVER["PHP_SELF"]);
+
+                    exit;
+                } else {
+                    $mensagem = "Erro ao atualizar item: ". $conexao->error;
+                }
+            }
+
+            $stmt->close();
+
+            $conexao->close();
+        }
+    }
+}
+
+// ___________________________________________________________________
+// Retorna todos os itens cadastrados no banco de dados (Read)
+
+// Função que consulta e retorna todos os itens cadastrados no banco de dados
+function listarItens() {
+    $itens = array();
+
+    $conexao = conectarBD();
+
+    $resultado = $conexao->query("SELECT id, nome FROM itens ORDER BY id ASC");
+
+    if ($resultado->num_rows > 0) {
+        while ($registro = $resultado->fetch_assoc()) {
+            $itens[] = $registro;
+        }
+    }
+
+    // Fecha a conexão com o banco de dados
+    $conexao->close();
+    // Retorna o array de itens
+    return $itens;
+}
 ?>
 
 <!-- __________________________________________________________________________________
