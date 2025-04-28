@@ -232,6 +232,10 @@ HTML + PHP Para exibição do sistema -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema PHP Simplificado</title>
+
+    <style>
+        
+    </style>
 </head>
 <body>
     <!-- Cabeçalho com informações de login -->
