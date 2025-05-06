@@ -3,8 +3,46 @@
 // PARTE 2: PROGRAMAÇÃO ORIENTADA A OBJETOS
 // ==========================================
 
+class Cachorro {
+    private $nome;
+    private $comida;
+    private $sono;
 
-// 1ª Digitação (Aqui)
+    public function __construct($nome, $comida, $sono) {
+        $this->nome = $nome;
+        $this->comida = $comida;
+        $this->sono = $sono;
+    }
+
+    public function comer() {
+        $this->comida -= 1;
+    }
+
+    public function dormir() {
+        $this->sono = false;
+    }
+
+    // Getters e Setters (Comuns no PHP)
+    public function getNome() {
+        return $this->nome;
+    }
+
+    public function getComida() {
+        return $this->comida;
+    }
+
+    public function getSono() {
+        return $this->sono;
+    }
+}
+
+// Criando objetos na programação orientada a objetos (POO)
+$cachorro_1= new Cachorro("Nelson", 3, false);
+$cachorro_2= new Cachorro("Jeremias", 1, true);
+
+// Usar metodos
+$cachorro_1->comer();
+$cachorro_2->dormir();
 
 
 // Exibindo os resultados no navegador
